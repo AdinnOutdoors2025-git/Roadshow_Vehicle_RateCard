@@ -278,16 +278,29 @@ export default function App() {
   }, [vehicles]);
 
   const selectedCategoryCount = categoryCounts[category] || 0;
+//SORT BY PRICE LOW TO HIGH
+  // const filteredVehicles = useMemo(() => {
+  //   return vehicles.filter((vehicle) => {
+  //     const displayCategory = normalizeCategory(vehicle.category);
+  //     const matchesCategory = category === "All" || displayCategory === category;
+  //     const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
+  //     const matchesSearch = keyword.includes(query.toLowerCase().trim());
+  //     return matchesCategory && matchesSearch;
+  //   });
+  // }, [vehicles, category, query]);
 
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter((vehicle) => {
+  return vehicles
+    .filter((vehicle) => {
       const displayCategory = normalizeCategory(vehicle.category);
       const matchesCategory = category === "All" || displayCategory === category;
       const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
       const matchesSearch = keyword.includes(query.toLowerCase().trim());
       return matchesCategory && matchesSearch;
-    });
-  }, [vehicles, category, query]);
+    })
+    .sort((a, b) => a.pricePerDay - b.pricePerDay);   // ← low to high price
+}, [vehicles, category, query]);
+//SORT BY PRICE LOW TO HIGH
 
   const handleLogoClick = () => {
     logoClickCountRef.current += 1;
@@ -411,9 +424,9 @@ export default function App() {
 
           <div className="heroStats singleStat">
             <div>
-              <span>Total Vehicles</span>
+              <span>Total Variants</span>
               <strong>{vehicles.length}</strong>
-              <small>available variants</small>
+              {/* <small>available variants</small> */}
             </div>
           </div>
         </div>
