@@ -3,10 +3,57 @@ import "./App.css";
 import initialVehicles from "./vehicles.json";
 
 const STORAGE_KEY = "adinn-roadshow-vehicles-json";
+const LOGO_SRC = "https://www.adinn.com/_next/static/media/AdinnLogo.80d7c577.svg";
 
-const formatPrice = (price) => `Rs. ${Number(price).toLocaleString("en-IN")}`;
+const CATEGORY_ORDER = ["Flex Branding", "Hybrid LED + Flex", "LED Vehicles"];
 
-const downloadJsonFile = (data, fileName = "vehicles.json") => {
+const normalizeCategory = (category: string) => {
+  if (category === "LED Vehicle") return "Hybrid LED + Flex";
+  if (category === "Premium LED") return "LED Vehicles";
+  return category;
+};
+
+const getVehicleSubLabel = (vehicle: Vehicle) => {
+  if (vehicle.category === "LED Vehicle") return "LED Vehicle";
+  return vehicle.type;
+};
+
+type QuickSpec = {
+  label: string;
+  value: string;
+};
+
+type LocationCharge = {
+  label: string;
+  chennai: string;
+  rotn: string;
+  kerala: string;
+  otherStates: string;
+};
+
+type Vehicle = {
+  id: number | string;
+  name: string;
+  category: string;
+  type: string;
+  shortDescription: string;
+  pricePerDay: number;
+  highlight: string;
+  quickSpecs: QuickSpec[];
+  included: string[];
+  brandingStatus: string;
+  addOns: string[];
+  images?: string[];
+  image?: string;
+  locationCharges?: LocationCharge[];
+  packageTotal?: string;
+};
+
+const fallbackVehicles = initialVehicles as Vehicle[];
+
+const formatPrice = (price: number) => `Rs. ${Number(price).toLocaleString("en-IN")}`;
+
+const downloadJsonFile = (data: Vehicle[], fileName = "vehicles.json") => {
   const jsonText = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonText], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -20,10 +67,17 @@ const downloadJsonFile = (data, fileName = "vehicles.json") => {
   URL.revokeObjectURL(url);
 };
 
-function VehicleCard({ vehicle }) {
-  const images = vehicle.images?.length ? vehicle.images : [vehicle.image].filter(Boolean);
+const isVehicleArray = (value: unknown): value is Vehicle[] => Array.isArray(value);
+
+function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+  const images = useMemo(() => {
+    if (vehicle.images?.length) return vehicle.images;
+    return [vehicle.image].filter(Boolean) as string[];
+  }, [vehicle.images, vehicle.image]);
+
   const [activeImage, setActiveImage] = useState(images[0] || "");
-  const hasLocationCharges = vehicle.locationCharges && vehicle.locationCharges.length > 0;
+  const hasLocationCharges = Boolean(vehicle.locationCharges?.length);
+  const displayCategory = normalizeCategory(vehicle.category);
 
   useEffect(() => {
     setActiveImage(images[0] || "");
@@ -33,8 +87,8 @@ function VehicleCard({ vehicle }) {
     <article className="vehicleCard">
       <section className="mediaPanel">
         <div className="mediaTop">
-          <span>{vehicle.category}</span>
-          <small>{vehicle.type}</small>
+          <span>{displayCategory}</span>
+          <small>{getVehicleSubLabel(vehicle)}</small>
         </div>
 
         <div className="mainImageBox">
@@ -45,19 +99,21 @@ function VehicleCard({ vehicle }) {
           )}
         </div>
 
-        <div className="thumbStrip">
-          {images.map((image, index) => (
-            <button
-              key={`${vehicle.id}-${image}-${index}`}
-              type="button"
-              className={activeImage === image ? "active" : ""}
-              onClick={() => setActiveImage(image)}
-              aria-label={`Show ${vehicle.name} image ${index + 1}`}
-            >
-              <img src={image} alt={`${vehicle.name} thumbnail ${index + 1}`} />
-            </button>
-          ))}
-        </div>
+        {images.length > 1 && (
+          <div className="thumbStrip">
+            {images.map((image, index) => (
+              <button
+                key={`${vehicle.id}-${image}-${index}`}
+                type="button"
+                className={activeImage === image ? "active" : ""}
+                onClick={() => setActiveImage(image)}
+                aria-label={`Show ${vehicle.name} image ${index + 1}`}
+              >
+                <img src={image} alt={`${vehicle.name} thumbnail ${index + 1}`} />
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="detailsPanel">
@@ -119,7 +175,7 @@ function VehicleCard({ vehicle }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {vehicle.locationCharges.map((row) => (
+                  {vehicle.locationCharges?.map((row) => (
                     <tr key={row.label}>
                       <td>{row.label}</td>
                       <td>{row.chennai}</td>
@@ -146,16 +202,16 @@ function VehicleCard({ vehicle }) {
 }
 
 export default function App() {
-  const [vehicles, setVehicles] = useState(() => {
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
     const savedVehicles = localStorage.getItem(STORAGE_KEY);
 
-    if (!savedVehicles) return initialVehicles;
+    if (!savedVehicles) return fallbackVehicles;
 
     try {
       const parsedVehicles = JSON.parse(savedVehicles);
-      return Array.isArray(parsedVehicles) ? parsedVehicles : initialVehicles;
+      return isVehicleArray(parsedVehicles) ? parsedVehicles : fallbackVehicles;
     } catch {
-      return initialVehicles;
+      return fallbackVehicles;
     }
   });
 
@@ -163,11 +219,11 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [showJsonPanel, setShowJsonPanel] = useState(false);
   const [jsonMessage, setJsonMessage] = useState("");
-  const [logoClickCount, setLogoClickCount] = useState(0);
 
-  const logoTimerRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const brandAreaRef = useRef(null);
+  const logoClickCountRef = useRef(0);
+  const logoTimerRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const brandAreaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
@@ -176,13 +232,13 @@ export default function App() {
   useEffect(() => {
     if (!showJsonPanel) return;
 
-    const handleOutsideClick = (event) => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       if (!brandAreaRef.current) return;
 
-      if (!brandAreaRef.current.contains(event.target)) {
+      if (!brandAreaRef.current.contains(event.target as Node)) {
         setShowJsonPanel(false);
         setJsonMessage("");
-        setLogoClickCount(0);
+        logoClickCountRef.current = 0;
       }
     };
 
@@ -195,47 +251,66 @@ export default function App() {
     };
   }, [showJsonPanel]);
 
-  const categories = useMemo(
-    () => ["All", ...Array.from(new Set(vehicles.map((vehicle) => vehicle.category)))],
-    [vehicles]
-  );
+  const categories = useMemo(() => {
+    const normalizedCategories = new Set(
+      vehicles.map((vehicle) => normalizeCategory(vehicle.category))
+    );
+
+    const orderedCategories = CATEGORY_ORDER.filter((item) => normalizedCategories.has(item));
+
+    const extraCategories = Array.from(normalizedCategories).filter(
+      (item) => !CATEGORY_ORDER.includes(item)
+    );
+
+    return ["All", ...orderedCategories, ...extraCategories];
+  }, [vehicles]);
+
+  const categoryCounts = useMemo(() => {
+    return vehicles.reduce<Record<string, number>>(
+      (counts, vehicle) => {
+        const displayCategory = normalizeCategory(vehicle.category);
+        counts.All += 1;
+        counts[displayCategory] = (counts[displayCategory] || 0) + 1;
+        return counts;
+      },
+      { All: 0 }
+    );
+  }, [vehicles]);
+
+  const selectedCategoryCount = categoryCounts[category] || 0;
 
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((vehicle) => {
-      const matchesCategory = category === "All" || vehicle.category === category;
-      const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category}`.toLowerCase();
+      const displayCategory = normalizeCategory(vehicle.category);
+      const matchesCategory = category === "All" || displayCategory === category;
+      const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
       const matchesSearch = keyword.includes(query.toLowerCase().trim());
       return matchesCategory && matchesSearch;
     });
   }, [vehicles, category, query]);
 
-  const startingPrice = useMemo(() => {
-    if (!vehicles.length) return 0;
-    return Math.min(...vehicles.map((vehicle) => Number(vehicle.pricePerDay || 0)));
-  }, [vehicles]);
-
   const handleLogoClick = () => {
-    const nextCount = logoClickCount + 1;
-    setLogoClickCount(nextCount);
+    logoClickCountRef.current += 1;
 
-    if (logoTimerRef.current) clearTimeout(logoTimerRef.current);
+    if (logoTimerRef.current) window.clearTimeout(logoTimerRef.current);
 
-    logoTimerRef.current = setTimeout(() => {
-      setLogoClickCount(0);
+    logoTimerRef.current = window.setTimeout(() => {
+      logoClickCountRef.current = 0;
     }, 900);
 
-    if (nextCount >= 3) {
+    if (logoClickCountRef.current >= 3) {
       setShowJsonPanel(true);
-      setLogoClickCount(0);
       setJsonMessage("");
-      clearTimeout(logoTimerRef.current);
+      logoClickCountRef.current = 0;
+
+      if (logoTimerRef.current) window.clearTimeout(logoTimerRef.current);
     }
   };
 
   const handleCloseJsonPanel = () => {
     setShowJsonPanel(false);
     setJsonMessage("");
-    setLogoClickCount(0);
+    logoClickCountRef.current = 0;
   };
 
   const handleDownloadJson = () => {
@@ -243,7 +318,7 @@ export default function App() {
     setJsonMessage("Current JSON downloaded successfully.");
   };
 
-  const handleUploadJson = async (event) => {
+  const handleUploadJson = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -251,7 +326,7 @@ export default function App() {
       const text = await file.text();
       const uploadedJson = JSON.parse(text);
 
-      if (!Array.isArray(uploadedJson)) {
+      if (!isVehicleArray(uploadedJson)) {
         throw new Error("The uploaded JSON must be an array of vehicles.");
       }
 
@@ -260,7 +335,9 @@ export default function App() {
       setQuery("");
       setJsonMessage("JSON uploaded and rate card updated successfully.");
     } catch (error) {
-      setJsonMessage(error.message || "Invalid JSON file. Please check and upload again.");
+      setJsonMessage(
+        error instanceof Error ? error.message : "Invalid JSON file. Please check and upload again."
+      );
     } finally {
       event.target.value = "";
     }
@@ -272,7 +349,10 @@ export default function App() {
         <nav className="navbar">
           <div className="brandArea" ref={brandAreaRef}>
             <button type="button" className="brandGroup brandButton" onClick={handleLogoClick}>
-              <div className="brandLogo">A</div>
+              <div className="brandLogoImage">
+                <img src={LOGO_SRC} alt="Adinn Roadshows" />
+              </div>
+
               <div>
                 <strong>Adinn Roadshows</strong>
                 <span>Vehicle Rate Card</span>
@@ -317,8 +397,6 @@ export default function App() {
               </div>
             )}
           </div>
-
-          <div className="navPill">JSON Managed</div>
         </nav>
 
         <div className="heroContent">
@@ -326,21 +404,16 @@ export default function App() {
             <span className="eyebrow">Premium Outdoor Advertising Vehicles</span>
             <h1>Roadshow rate card with images, pricing and specifications.</h1>
             <p>
-              Browse Flex branding, LED and hybrid roadshow vehicles with per-day cost,
-              km limits, minimum days, add-ons and location-wise charges.
+              Browse Flex branding, LED and hybrid roadshow vehicles with per-day cost, km limits,
+              minimum days, add-ons and location-wise charges.
             </p>
           </div>
 
-          <div className="heroStats">
-            <div>
-              <span>Starting From</span>
-              <strong>{formatPrice(startingPrice)}</strong>
-              <small>per day</small>
-            </div>
+          <div className="heroStats singleStat">
             <div>
               <span>Total Vehicles</span>
               <strong>{vehicles.length}</strong>
-              <small>variants</small>
+              <small>available variants</small>
             </div>
           </div>
         </div>
@@ -351,6 +424,11 @@ export default function App() {
           <div>
             <span className="sectionKicker">Choose Vehicle</span>
             <h2>Available rate cards</h2>
+            <p className="selectedCount">
+              {category === "All"
+                ? `${selectedCategoryCount} vehicles available`
+                : `${selectedCategoryCount} vehicles in ${category}`}
+            </p>
           </div>
 
           <div className="filterControls">
@@ -369,7 +447,8 @@ export default function App() {
                   className={category === item ? "active" : ""}
                   onClick={() => setCategory(item)}
                 >
-                  {item}
+                  <span>{item}</span>
+                  <small className="tabCount">{categoryCounts[item] || 0}</small>
                 </button>
               ))}
             </div>
