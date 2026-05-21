@@ -1,0 +1,389 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import "./App.css";
+import initialVehicles from "./vehicles.json";
+
+const STORAGE_KEY = "adinn-roadshow-vehicles-json";
+
+const formatPrice = (price) => `Rs. ${Number(price).toLocaleString("en-IN")}`;
+
+const downloadJsonFile = (data, fileName = "vehicles.json") => {
+  const jsonText = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonText], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+function VehicleCard({ vehicle }) {
+  const images = vehicle.images?.length ? vehicle.images : [vehicle.image].filter(Boolean);
+  const [activeImage, setActiveImage] = useState(images[0] || "");
+  const hasLocationCharges = vehicle.locationCharges && vehicle.locationCharges.length > 0;
+
+  useEffect(() => {
+    setActiveImage(images[0] || "");
+  }, [vehicle.id, images]);
+
+  return (
+    <article className="vehicleCard">
+      <section className="mediaPanel">
+        <div className="mediaTop">
+          <span>{vehicle.category}</span>
+          <small>{vehicle.type}</small>
+        </div>
+
+        <div className="mainImageBox">
+          {activeImage ? (
+            <img src={activeImage} alt={vehicle.name} />
+          ) : (
+            <div className="emptyImage">Vehicle Image</div>
+          )}
+        </div>
+
+        <div className="thumbStrip">
+          {images.map((image, index) => (
+            <button
+              key={`${vehicle.id}-${image}-${index}`}
+              type="button"
+              className={activeImage === image ? "active" : ""}
+              onClick={() => setActiveImage(image)}
+              aria-label={`Show ${vehicle.name} image ${index + 1}`}
+            >
+              <img src={image} alt={`${vehicle.name} thumbnail ${index + 1}`} />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="detailsPanel">
+        <div className="titleRow">
+          <div>
+            <h2>{vehicle.name}</h2>
+            <p>{vehicle.shortDescription}</p>
+          </div>
+
+          <div className="priceBox">
+            <span>Per Day</span>
+            <strong>{formatPrice(vehicle.pricePerDay)}</strong>
+          </div>
+        </div>
+
+        <div className="highlightBar">{vehicle.highlight}</div>
+
+        <div className="specGrid">
+          {vehicle.quickSpecs.map((spec) => (
+            <div className="specCard" key={spec.label}>
+              <span>{spec.label}</span>
+              <strong>{spec.value}</strong>
+            </div>
+          ))}
+        </div>
+
+        <div className="infoGrid">
+          <div className="infoCard">
+            <h3>Included in per day cost</h3>
+            <ul>
+              {vehicle.included.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="infoCard redTint">
+            <h3>{vehicle.brandingStatus}</h3>
+            <ul>
+              {vehicle.addOns.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {hasLocationCharges && (
+          <details className="locationDetails">
+            <summary>View location-wise charges</summary>
+            <div className="locationTableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Charge</th>
+                    <th>Chennai</th>
+                    <th>ROTN</th>
+                    <th>Kerala</th>
+                    <th>Other States</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vehicle.locationCharges.map((row) => (
+                    <tr key={row.label}>
+                      <td>{row.label}</td>
+                      <td>{row.chennai}</td>
+                      <td>{row.rotn}</td>
+                      <td>{row.kerala}</td>
+                      <td>{row.otherStates}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
+
+        {vehicle.packageTotal && (
+          <div className="packageBox">
+            <span>Package</span>
+            <strong>{vehicle.packageTotal}</strong>
+          </div>
+        )}
+      </section>
+    </article>
+  );
+}
+
+export default function App() {
+  const [vehicles, setVehicles] = useState(() => {
+    const savedVehicles = localStorage.getItem(STORAGE_KEY);
+
+    if (!savedVehicles) return initialVehicles;
+
+    try {
+      const parsedVehicles = JSON.parse(savedVehicles);
+      return Array.isArray(parsedVehicles) ? parsedVehicles : initialVehicles;
+    } catch {
+      return initialVehicles;
+    }
+  });
+
+  const [category, setCategory] = useState("All");
+  const [query, setQuery] = useState("");
+  const [showJsonPanel, setShowJsonPanel] = useState(false);
+  const [jsonMessage, setJsonMessage] = useState("");
+  const [logoClickCount, setLogoClickCount] = useState(0);
+
+  const logoTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const brandAreaRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+  }, [vehicles]);
+
+  useEffect(() => {
+    if (!showJsonPanel) return;
+
+    const handleOutsideClick = (event) => {
+      if (!brandAreaRef.current) return;
+
+      if (!brandAreaRef.current.contains(event.target)) {
+        setShowJsonPanel(false);
+        setJsonMessage("");
+        setLogoClickCount(0);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [showJsonPanel]);
+
+  const categories = useMemo(
+    () => ["All", ...Array.from(new Set(vehicles.map((vehicle) => vehicle.category)))],
+    [vehicles]
+  );
+
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((vehicle) => {
+      const matchesCategory = category === "All" || vehicle.category === category;
+      const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category}`.toLowerCase();
+      const matchesSearch = keyword.includes(query.toLowerCase().trim());
+      return matchesCategory && matchesSearch;
+    });
+  }, [vehicles, category, query]);
+
+  const startingPrice = useMemo(() => {
+    if (!vehicles.length) return 0;
+    return Math.min(...vehicles.map((vehicle) => Number(vehicle.pricePerDay || 0)));
+  }, [vehicles]);
+
+  const handleLogoClick = () => {
+    const nextCount = logoClickCount + 1;
+    setLogoClickCount(nextCount);
+
+    if (logoTimerRef.current) clearTimeout(logoTimerRef.current);
+
+    logoTimerRef.current = setTimeout(() => {
+      setLogoClickCount(0);
+    }, 900);
+
+    if (nextCount >= 3) {
+      setShowJsonPanel(true);
+      setLogoClickCount(0);
+      setJsonMessage("");
+      clearTimeout(logoTimerRef.current);
+    }
+  };
+
+  const handleCloseJsonPanel = () => {
+    setShowJsonPanel(false);
+    setJsonMessage("");
+    setLogoClickCount(0);
+  };
+
+  const handleDownloadJson = () => {
+    downloadJsonFile(vehicles);
+    setJsonMessage("Current JSON downloaded successfully.");
+  };
+
+  const handleUploadJson = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const uploadedJson = JSON.parse(text);
+
+      if (!Array.isArray(uploadedJson)) {
+        throw new Error("The uploaded JSON must be an array of vehicles.");
+      }
+
+      setVehicles(uploadedJson);
+      setCategory("All");
+      setQuery("");
+      setJsonMessage("JSON uploaded and rate card updated successfully.");
+    } catch (error) {
+      setJsonMessage(error.message || "Invalid JSON file. Please check and upload again.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  return (
+    <div className="app">
+      <header className="hero">
+        <nav className="navbar">
+          <div className="brandArea" ref={brandAreaRef}>
+            <button type="button" className="brandGroup brandButton" onClick={handleLogoClick}>
+              <div className="brandLogo">A</div>
+              <div>
+                <strong>Adinn Roadshows</strong>
+                <span>Vehicle Rate Card</span>
+              </div>
+            </button>
+
+            {showJsonPanel && (
+              <div className="jsonPanel">
+                <button
+                  type="button"
+                  className="jsonCloseBtn"
+                  onClick={handleCloseJsonPanel}
+                  aria-label="Close JSON manager"
+                >
+                  ×
+                </button>
+
+                <div>
+                  <strong>JSON Manager</strong>
+                  <span>Download, edit and upload vehicles.json</span>
+                </div>
+
+                <div className="jsonActions">
+                  <button type="button" onClick={handleDownloadJson}>
+                    Download JSON
+                  </button>
+
+                  <button type="button" onClick={() => fileInputRef.current?.click()}>
+                    Upload JSON
+                  </button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleUploadJson}
+                    hidden
+                  />
+                </div>
+
+                {jsonMessage && <p>{jsonMessage}</p>}
+              </div>
+            )}
+          </div>
+
+          <div className="navPill">JSON Managed</div>
+        </nav>
+
+        <div className="heroContent">
+          <div>
+            <span className="eyebrow">Premium Outdoor Advertising Vehicles</span>
+            <h1>Roadshow rate card with images, pricing and specifications.</h1>
+            <p>
+              Browse Flex branding, LED and hybrid roadshow vehicles with per-day cost,
+              km limits, minimum days, add-ons and location-wise charges.
+            </p>
+          </div>
+
+          <div className="heroStats">
+            <div>
+              <span>Starting From</span>
+              <strong>{formatPrice(startingPrice)}</strong>
+              <small>per day</small>
+            </div>
+            <div>
+              <span>Total Vehicles</span>
+              <strong>{vehicles.length}</strong>
+              <small>variants</small>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mainWrap">
+        <section className="filterCard">
+          <div>
+            <span className="sectionKicker">Choose Vehicle</span>
+            <h2>Available rate cards</h2>
+          </div>
+
+          <div className="filterControls">
+            <input
+              type="search"
+              placeholder="Search vehicle..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+
+            <div className="filterTabs">
+              {categories.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={category === item ? "active" : ""}
+                  onClick={() => setCategory(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="vehicleList">
+          {filteredVehicles.length > 0 ? (
+            filteredVehicles.map((vehicle) => <VehicleCard vehicle={vehicle} key={vehicle.id} />)
+          ) : (
+            <div className="emptyState">No vehicles found. Try another search or filter.</div>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
