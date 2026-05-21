@@ -182,7 +182,8 @@ input {
 .mainWrap {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 0 24px 72px;
+    /* padding: 0 24px 72px; */
+  padding: 0px -10px;
 }
 
 .filterCard {
@@ -344,7 +345,8 @@ input {
 }
 
 .detailsPanel {
-  padding: 28px;
+  /* padding: 28px; */
+  padding: 28px 20px;
 }
 
 .titleRow {
