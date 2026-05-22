@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
-import initialVehicles from "./vehicles.json";
 
-const STORAGE_KEY = "adinn-roadshow-vehicles-json";
 const LOGO_SRC = "https://www.adinn.com/_next/static/media/AdinnLogo.80d7c577.svg";
+
+const VEHICLES_JSON_URL =
+  "https://adinn-space.sgp1.cdn.digitaloceanspaces.com/roadshowRateCard/vehicles.json";
+
+// const API_BASE_URL = "http://localhost:3001";
+const API_BASE_URL = "https://roadshowratecard.netlify.app";
+  
 
 const CATEGORY_ORDER = ["Flex Branding", "Hybrid LED + Flex", "LED Vehicles"];
 
@@ -51,9 +56,8 @@ type Vehicle = {
 
 type SortOrder = "lowToHigh" | "highToLow";
 
-const fallbackVehicles = initialVehicles as Vehicle[];
-
-const formatPrice = (price: number) => `Rs. ${Number(price).toLocaleString("en-IN")}`;
+const formatPrice = (price: number) =>
+  `Rs. ${Number(price).toLocaleString("en-IN")}`;
 
 const downloadJsonFile = (data: Vehicle[], fileName = "vehicles.json") => {
   const jsonText = JSON.stringify(data, null, 2);
@@ -69,7 +73,9 @@ const downloadJsonFile = (data: Vehicle[], fileName = "vehicles.json") => {
   URL.revokeObjectURL(url);
 };
 
-const isVehicleArray = (value: unknown): value is Vehicle[] => Array.isArray(value);
+const isVehicleArray = (value: unknown): value is Vehicle[] => {
+  return Array.isArray(value);
+};
 
 function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
   const images = useMemo(() => {
@@ -165,6 +171,7 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
         {hasLocationCharges && (
           <details className="locationDetails">
             <summary>View location-wise charges</summary>
+
             <div className="locationTableWrap">
               <table>
                 <thead>
@@ -176,6 +183,7 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
                     <th>Other States</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {vehicle.locationCharges?.map((row) => (
                     <tr key={row.label}>
@@ -202,20 +210,11 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
     </article>
   );
 }
-const baseUrl = "https://roadshow-backend.onrender.com";
+
 export default function App() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const savedVehicles = localStorage.getItem(STORAGE_KEY);
-
-    if (!savedVehicles) return fallbackVehicles;
-
-    try {
-      const parsedVehicles = JSON.parse(savedVehicles);
-      return isVehicleArray(parsedVehicles) ? parsedVehicles : fallbackVehicles;
-    } catch {
-      return fallbackVehicles;
-    }
-  });
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
+  const [vehiclesError, setVehiclesError] = useState("");
 
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
@@ -229,8 +228,39 @@ export default function App() {
   const brandAreaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
-  }, [vehicles]);
+    const loadCloudVehicles = async () => {
+      try {
+        setIsLoadingVehicles(true);
+        setVehiclesError("");
+
+        const response = await fetch(`${VEHICLES_JSON_URL}?v=${Date.now()}`, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("Unable to load vehicles from cloud.");
+        }
+
+        const cloudVehicles = await response.json();
+
+        if (!isVehicleArray(cloudVehicles)) {
+          throw new Error("Cloud vehicles.json is not a valid vehicle array.");
+        }
+
+        setVehicles(cloudVehicles);
+      } catch (error) {
+        setVehiclesError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load cloud vehicles."
+        );
+      } finally {
+        setIsLoadingVehicles(false);
+      }
+    };
+
+    loadCloudVehicles();
+  }, []);
 
   useEffect(() => {
     if (!showJsonPanel) return;
@@ -259,7 +289,9 @@ export default function App() {
       vehicles.map((vehicle) => normalizeCategory(vehicle.category))
     );
 
-    const orderedCategories = CATEGORY_ORDER.filter((item) => normalizedCategories.has(item));
+    const orderedCategories = CATEGORY_ORDER.filter((item) =>
+      normalizedCategories.has(item)
+    );
 
     const extraCategories = Array.from(normalizedCategories).filter(
       (item) => !CATEGORY_ORDER.includes(item)
@@ -272,8 +304,10 @@ export default function App() {
     return vehicles.reduce<Record<string, number>>(
       (counts, vehicle) => {
         const displayCategory = normalizeCategory(vehicle.category);
+
         counts.All += 1;
         counts[displayCategory] = (counts[displayCategory] || 0) + 1;
+
         return counts;
       },
       { All: 0 }
@@ -282,36 +316,41 @@ export default function App() {
 
   const selectedCategoryCount = categoryCounts[category] || 0;
 
-const filteredVehicles = useMemo(() => {
-  return vehicles
-    .filter((vehicle) => {
-      const displayCategory = normalizeCategory(vehicle.category);
-      const matchesCategory = category === "All" || displayCategory === category;
-      const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
-      const matchesSearch = keyword.includes(query.toLowerCase().trim());
+  const filteredVehicles = useMemo(() => {
+    return vehicles
+      .filter((vehicle) => {
+        const displayCategory = normalizeCategory(vehicle.category);
+        const matchesCategory =
+          category === "All" || displayCategory === category;
 
-      return matchesCategory && matchesSearch;
-    })
-    .sort((a, b) => {
-      if (sortOrder === "highToLow") {
-        return b.pricePerDay - a.pricePerDay;
-      }
+        const keyword =
+          `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
 
-      return a.pricePerDay - b.pricePerDay;
-    });
-}, [vehicles, category, query, sortOrder]);
+        const matchesSearch = keyword.includes(query.toLowerCase().trim());
 
+        return matchesCategory && matchesSearch;
+      })
+      .sort((a, b) => {
+        if (sortOrder === "highToLow") {
+          return b.pricePerDay - a.pricePerDay;
+        }
 
-const handleAmountSortClick = () => {
-  setSortOrder((currentSortOrder) =>
-    currentSortOrder === "lowToHigh" ? "highToLow" : "lowToHigh"
-  );
-};
+        return a.pricePerDay - b.pricePerDay;
+      });
+  }, [vehicles, category, query, sortOrder]);
+
+  const handleAmountSortClick = () => {
+    setSortOrder((currentSortOrder) =>
+      currentSortOrder === "lowToHigh" ? "highToLow" : "lowToHigh"
+    );
+  };
 
   const handleLogoClick = () => {
     logoClickCountRef.current += 1;
 
-    if (logoTimerRef.current) window.clearTimeout(logoTimerRef.current);
+    if (logoTimerRef.current) {
+      window.clearTimeout(logoTimerRef.current);
+    }
 
     logoTimerRef.current = window.setTimeout(() => {
       logoClickCountRef.current = 0;
@@ -322,7 +361,9 @@ const handleAmountSortClick = () => {
       setJsonMessage("");
       logoClickCountRef.current = 0;
 
-      if (logoTimerRef.current) window.clearTimeout(logoTimerRef.current);
+      if (logoTimerRef.current) {
+        window.clearTimeout(logoTimerRef.current);
+      }
     }
   };
 
@@ -332,16 +373,44 @@ const handleAmountSortClick = () => {
     logoClickCountRef.current = 0;
   };
 
-  const handleDownloadJson = () => {
-    downloadJsonFile(vehicles);
-    setJsonMessage("Current JSON downloaded successfully.");
+  const handleDownloadJson = async () => {
+    try {
+      setJsonMessage("Downloading cloud JSON...");
+
+      const response = await fetch(`${VEHICLES_JSON_URL}?v=${Date.now()}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to download cloud vehicles.json.");
+      }
+
+      const cloudVehicles = await response.json();
+
+      if (!isVehicleArray(cloudVehicles)) {
+        throw new Error("Cloud JSON is not a valid vehicle array.");
+      }
+
+      downloadJsonFile(cloudVehicles, "vehicles.json");
+      setJsonMessage("Cloud JSON downloaded successfully.");
+    } catch (error) {
+      setJsonMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to download cloud JSON."
+      );
+    }
   };
 
-  const handleUploadJson = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadJson = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
+      setJsonMessage("Uploading JSON to cloud...");
+
       const text = await file.text();
       const uploadedJson = JSON.parse(text);
 
@@ -349,8 +418,8 @@ const handleAmountSortClick = () => {
         throw new Error("The uploaded JSON must be an array of vehicles.");
       }
 
-      const response = await fetch(`${baseUrl}/api/update-vehicles-json`, {
-        method: "POST",
+      const response = await fetch(`${API_BASE_URL}/api/update-vehicles-json`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
@@ -360,14 +429,14 @@ const handleAmountSortClick = () => {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || "Unable to update src/vehicles.json.");
+        throw new Error(result.message || "Unable to update cloud vehicles.json.");
       }
 
       setVehicles(uploadedJson);
       setCategory("All");
       setQuery("");
       setSortOrder("lowToHigh");
-      setJsonMessage("JSON uploaded and src/vehicles.json updated successfully.");
+      setJsonMessage("Cloud vehicles.json updated successfully.");
     } catch (error) {
       setJsonMessage(
         error instanceof Error
@@ -384,7 +453,11 @@ const handleAmountSortClick = () => {
       <header className="hero">
         <nav className="navbar">
           <div className="brandArea" ref={brandAreaRef}>
-            <button type="button" className="brandGroup brandButton" onClick={handleLogoClick}>
+            <button
+              type="button"
+              className="brandGroup brandButton"
+              onClick={handleLogoClick}
+            >
               <div className="brandLogoImage">
                 <img src={LOGO_SRC} alt="Adinn Roadshows" />
               </div>
@@ -416,7 +489,10 @@ const handleAmountSortClick = () => {
                     Download JSON
                   </button>
 
-                  <button type="button" onClick={() => fileInputRef.current?.click()}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     Upload JSON
                   </button>
 
@@ -438,10 +514,12 @@ const handleAmountSortClick = () => {
         <div className="heroContent">
           <div>
             <span className="eyebrow">Premium Outdoor Advertising Vehicles</span>
+
             <h1>Roadshow rate card with images, pricing and specifications.</h1>
+
             <p>
-              Browse Flex branding, LED and hybrid roadshow vehicles with per-day cost, km limits,
-              minimum days, add-ons and location-wise charges.
+              Browse Flex branding, LED and hybrid roadshow vehicles with per-day
+              cost, km limits, minimum days, add-ons and location-wise charges.
             </p>
           </div>
 
@@ -459,57 +537,68 @@ const handleAmountSortClick = () => {
           <div>
             <span className="sectionKicker">Choose Vehicle</span>
             <h2>Available rate cards</h2>
+
             <p className="selectedCount">
-              {category === "All"
+              {isLoadingVehicles
+                ? "Loading vehicles..."
+                : category === "All"
                 ? `${selectedCategoryCount} vehicles available`
                 : `${selectedCategoryCount} vehicles in ${category}`}
             </p>
           </div>
 
           <div className="filterControls">
-  <div className="filterTopRow">
-    <input
-      type="search"
-      placeholder="Search vehicle..."
-      value={query}
-      onChange={(event) => setQuery(event.target.value)}
-    />
+            <div className="filterTopRow">
+              <input
+                type="search"
+                placeholder="Search vehicle..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
 
-    <button
-      type="button"
-      className="amountSortBtn"
-      onClick={handleAmountSortClick}
-      aria-label="Sort vehicles by amount"
-    >
-      <span>Amount</span>
-      <strong>{sortOrder === "lowToHigh" ? "Low - High" : "High - Low"}</strong>
-      <em>{sortOrder === "lowToHigh" ? "↑" : "↓"}</em>
-    </button>
-  </div>
+              <button
+                type="button"
+                className="amountSortBtn"
+                onClick={handleAmountSortClick}
+                aria-label="Sort vehicles by amount"
+              >
+                <span>Amount</span>
+                <strong>
+                  {sortOrder === "lowToHigh" ? "Low - High" : "High - Low"}
+                </strong>
+                <em>{sortOrder === "lowToHigh" ? "↑" : "↓"}</em>
+              </button>
+            </div>
 
-  <div className="filterTabs">
-    {categories.map((item) => (
-      <button
-        key={item}
-        type="button"
-        className={category === item ? "active" : ""}
-        onClick={() => setCategory(item)}
-      >
-        <span>{item}</span>
-        <small className="tabCount">{categoryCounts[item] || 0}</small>
-      </button>
-    ))}
-  </div>
-</div>
-
-          
+            <div className="filterTabs">
+              {categories.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={category === item ? "active" : ""}
+                  onClick={() => setCategory(item)}
+                >
+                  <span>{item}</span>
+                  <small className="tabCount">{categoryCounts[item] || 0}</small>
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="vehicleList">
-          {filteredVehicles.length > 0 ? (
-            filteredVehicles.map((vehicle) => <VehicleCard vehicle={vehicle} key={vehicle.id} />)
+          {isLoadingVehicles ? (
+            <div className="emptyState">Loading vehicles from cloud...</div>
+          ) : vehiclesError ? (
+            <div className="emptyState">{vehiclesError}</div>
+          ) : filteredVehicles.length > 0 ? (
+            filteredVehicles.map((vehicle) => (
+              <VehicleCard vehicle={vehicle} key={vehicle.id} />
+            ))
           ) : (
-            <div className="emptyState">No vehicles found. Try another search or filter.</div>
+            <div className="emptyState">
+              No vehicles found. Try another search or filter.
+            </div>
           )}
         </section>
       </main>
