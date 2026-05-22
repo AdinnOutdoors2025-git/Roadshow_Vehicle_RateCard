@@ -49,6 +49,8 @@ type Vehicle = {
   packageTotal?: string;
 };
 
+type SortOrder = "lowToHigh" | "highToLow";
+
 const fallbackVehicles = initialVehicles as Vehicle[];
 
 const formatPrice = (price: number) => `Rs. ${Number(price).toLocaleString("en-IN")}`;
@@ -200,7 +202,7 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
     </article>
   );
 }
-
+const baseUrl = "https://roadshow-backend.onrender.com";
 export default function App() {
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
     const savedVehicles = localStorage.getItem(STORAGE_KEY);
@@ -217,6 +219,7 @@ export default function App() {
 
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("lowToHigh");
   const [showJsonPanel, setShowJsonPanel] = useState(false);
   const [jsonMessage, setJsonMessage] = useState("");
 
@@ -278,29 +281,32 @@ export default function App() {
   }, [vehicles]);
 
   const selectedCategoryCount = categoryCounts[category] || 0;
-//SORT BY PRICE LOW TO HIGH
-  // const filteredVehicles = useMemo(() => {
-  //   return vehicles.filter((vehicle) => {
-  //     const displayCategory = normalizeCategory(vehicle.category);
-  //     const matchesCategory = category === "All" || displayCategory === category;
-  //     const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
-  //     const matchesSearch = keyword.includes(query.toLowerCase().trim());
-  //     return matchesCategory && matchesSearch;
-  //   });
-  // }, [vehicles, category, query]);
 
-  const filteredVehicles = useMemo(() => {
+const filteredVehicles = useMemo(() => {
   return vehicles
     .filter((vehicle) => {
       const displayCategory = normalizeCategory(vehicle.category);
       const matchesCategory = category === "All" || displayCategory === category;
       const keyword = `${vehicle.name} ${vehicle.type} ${vehicle.category} ${displayCategory}`.toLowerCase();
       const matchesSearch = keyword.includes(query.toLowerCase().trim());
+
       return matchesCategory && matchesSearch;
     })
-    .sort((a, b) => a.pricePerDay - b.pricePerDay);   // ← low to high price
-}, [vehicles, category, query]);
-//SORT BY PRICE LOW TO HIGH
+    .sort((a, b) => {
+      if (sortOrder === "highToLow") {
+        return b.pricePerDay - a.pricePerDay;
+      }
+
+      return a.pricePerDay - b.pricePerDay;
+    });
+}, [vehicles, category, query, sortOrder]);
+
+
+const handleAmountSortClick = () => {
+  setSortOrder((currentSortOrder) =>
+    currentSortOrder === "lowToHigh" ? "highToLow" : "lowToHigh"
+  );
+};
 
   const handleLogoClick = () => {
     logoClickCountRef.current += 1;
@@ -343,13 +349,30 @@ export default function App() {
         throw new Error("The uploaded JSON must be an array of vehicles.");
       }
 
+      const response = await fetch(`${baseUrl}/api/update-vehicles-json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(uploadedJson),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to update src/vehicles.json.");
+      }
+
       setVehicles(uploadedJson);
       setCategory("All");
       setQuery("");
-      setJsonMessage("JSON uploaded and rate card updated successfully.");
+      setSortOrder("lowToHigh");
+      setJsonMessage("JSON uploaded and src/vehicles.json updated successfully.");
     } catch (error) {
       setJsonMessage(
-        error instanceof Error ? error.message : "Invalid JSON file. Please check and upload again."
+        error instanceof Error
+          ? error.message
+          : "Invalid JSON file. Please check and upload again."
       );
     } finally {
       event.target.value = "";
@@ -426,7 +449,6 @@ export default function App() {
             <div>
               <span>Total Variants</span>
               <strong>{vehicles.length}</strong>
-              {/* <small>available variants</small> */}
             </div>
           </div>
         </div>
@@ -445,27 +467,42 @@ export default function App() {
           </div>
 
           <div className="filterControls">
-            <input
-              type="search"
-              placeholder="Search vehicle..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+  <div className="filterTopRow">
+    <input
+      type="search"
+      placeholder="Search vehicle..."
+      value={query}
+      onChange={(event) => setQuery(event.target.value)}
+    />
 
-            <div className="filterTabs">
-              {categories.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={category === item ? "active" : ""}
-                  onClick={() => setCategory(item)}
-                >
-                  <span>{item}</span>
-                  <small className="tabCount">{categoryCounts[item] || 0}</small>
-                </button>
-              ))}
-            </div>
-          </div>
+    <button
+      type="button"
+      className="amountSortBtn"
+      onClick={handleAmountSortClick}
+      aria-label="Sort vehicles by amount"
+    >
+      <span>Amount</span>
+      <strong>{sortOrder === "lowToHigh" ? "Low - High" : "High - Low"}</strong>
+      <em>{sortOrder === "lowToHigh" ? "↑" : "↓"}</em>
+    </button>
+  </div>
+
+  <div className="filterTabs">
+    {categories.map((item) => (
+      <button
+        key={item}
+        type="button"
+        className={category === item ? "active" : ""}
+        onClick={() => setCategory(item)}
+      >
+        <span>{item}</span>
+        <small className="tabCount">{categoryCounts[item] || 0}</small>
+      </button>
+    ))}
+  </div>
+</div>
+
+          
         </section>
 
         <section className="vehicleList">
