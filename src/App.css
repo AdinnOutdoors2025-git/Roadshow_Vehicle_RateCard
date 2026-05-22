@@ -17,7 +17,8 @@ input {
 .app {
   align-items: center !important;
   align-content: center !important;
-  width: 65%;
+    /* width: 65%; */
+  width: max-content;
   margin: 0 auto;
   min-height: 100vh;
   background:
@@ -498,7 +499,7 @@ input {
 
 .locationTableWrap table {
   width: 100%;
-  min-width: 620px;
+  /* min-width: 620px; */
   border-collapse: collapse;
 }
 
@@ -903,4 +904,17 @@ input {
   .filterTabs {
     justify-content: flex-start;
   }
+}
+
+@media (min-width: 1080px) {
+  .app{
+  /* width: 85%; */
+  margin: 0 auto;
+  min-height: 100vh;
+  }
+  .mainWrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px 82px;
+} 
 }
