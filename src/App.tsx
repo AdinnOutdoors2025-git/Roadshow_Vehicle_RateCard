@@ -3,14 +3,27 @@ import "./App.css";
 
 const LOGO_SRC = "https://www.adinn.com/_next/static/media/AdinnLogo.80d7c577.svg";
 
-const VEHICLES_JSON_URL =
-  "https://adinn-space.sgp1.cdn.digitaloceanspaces.com/roadshowRateCard/vehicles.json";
+// // const VEHICLES_JSON_URL = "https://adinn-space.sgp1.cdn.digitaloceanspaces.com/roadshowRateCard/vehicles.json";
+// const VEHICLES_JSON_URL_local = "/vehicles.json";
+
+//KARTHI ADDED
+const USE_LOCAL_JSON = false;   //set true for local , false for live
+const VEHICLES_JSON_URL = USE_LOCAL_JSON
+  ? "/vehicles.json"
+  : "https://adinn-space.sgp1.cdn.digitaloceanspaces.com/roadshowRateCard/vehicles.json";
+
+const USE_LOCAL_API = false;   //set true for local , false for live
+const API_BASE_URL = USE_LOCAL_API
+  ? "http://localhost:3001"
+  : "https://roadshow-backend.onrender.com";
+
+//KARTHI ADDED
 
 // const API_BASE_URL = "http://localhost:3001";
 // const API_BASE_URL = "https://roadshowratecard.netlify.app";
-const API_BASE_URL = "https://roadshow-backend.onrender.com";
+// const API_BASE_URL = "https://roadshow-backend.onrender.com";
 
-  
+
 
 const CATEGORY_ORDER = ["Flex Branding", "Hybrid LED + Flex", "LED Vehicles"];
 
@@ -544,8 +557,8 @@ export default function App() {
               {isLoadingVehicles
                 ? "Loading vehicles..."
                 : category === "All"
-                ? `${selectedCategoryCount} vehicles available`
-                : `${selectedCategoryCount} vehicles in ${category}`}
+                  ? `${selectedCategoryCount} vehicles available`
+                  : `${selectedCategoryCount} vehicles in ${category}`}
             </p>
           </div>
 
