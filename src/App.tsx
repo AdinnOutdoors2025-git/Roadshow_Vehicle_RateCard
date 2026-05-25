@@ -6,7 +6,7 @@ const LOGO_SRC = "https://www.adinn.com/_next/static/media/AdinnLogo.80d7c577.sv
 // // const VEHICLES_JSON_URL = "https://adinn-space.sgp1.cdn.digitaloceanspaces.com/roadshowRateCard/vehicles.json";
 // const VEHICLES_JSON_URL_local = "/vehicles.json";
 
-//KARTHI ADDED
+//KARTHI ADDED 
 const USE_LOCAL_JSON = false;   //set true for local , false for live
 const VEHICLES_JSON_URL = USE_LOCAL_JSON
   ? "/vehicles.json"
