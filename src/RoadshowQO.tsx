@@ -1834,9 +1834,9 @@ export default function RoadshowQO() {
 
         <aside className="qoPreviewColumn">
           <div
-            className={`proposalDocument printableArea ${isCompactProposal ? "compactQuote" : ""}`}
-          >
-            <header className="quoteTopBar">
+            className={`proposalDocument printableArea ${isCompactProposal ? "compactQuote" : ""}`} style={{display:'flex', justifyContent:'space-between'}}>
+            <div>
+             <header className="quoteTopBar">
               <div className="quoteBrandBlock">
                 <div className="quoteLogoBox">
                   <img src={displayLogo} alt="Adinn logo" />
@@ -1863,8 +1863,10 @@ export default function RoadshowQO() {
                 </div>
               </div>
             </header>
+           </div>
 
-            <section className="quotePartyGrid">
+           <div>
+             <section className="quotePartyGrid">
               <div className="quotePartyCard">
                 <p>Quotation To</p>
                 <h2>{clientDetails.companyName || "-"}</h2>
@@ -1882,8 +1884,10 @@ export default function RoadshowQO() {
                 <span>{preparedByDetails.address || "-"}</span>
               </div>
             </section>
+           </div>
 
-            <section className="quoteCampaignCard">
+           <div>
+             <section className="quoteCampaignCard">
               <div className="quoteSectionTitle">
                 <span>Campaign Details</span>
                 <strong>{selectedVehicle?.name || "Selected Vehicle"}</strong>
@@ -1924,8 +1928,10 @@ export default function RoadshowQO() {
                 </div>
               </div>
             </section>
+           </div>
 
-            <section className="quoteTableCard">
+           <div>
+             <section className="quoteTableCard">
               <div className="quoteTableHead">
                 <div>
                   <span>Commercial Quotation</span>
@@ -1994,8 +2000,10 @@ export default function RoadshowQO() {
                 </tfoot>
               </table>
             </section>
+           </div>
 
-            <section className="quoteTermsPanel">
+            <div>
+              <section className="quoteTermsPanel">
               <div className="quoteTermsHeader">
                 <div>
                   <span>Booking Assurance</span>
@@ -2019,8 +2027,10 @@ export default function RoadshowQO() {
                 </ol>
               </div>
             </section>
+            </div>
 
-            <footer
+           <div>
+             <footer
               className={`quoteFooter quotePremiumFooter ${
                 uploadedSignature ? "hasSignature" : "noSignature"
               }`}
@@ -2049,6 +2059,7 @@ export default function RoadshowQO() {
                 </div>
               )}
             </footer>
+           </div>
 
             
           </div>
